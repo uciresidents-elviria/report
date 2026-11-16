@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Report a fault</title>
-<meta name="theme-color" content="#0f3d2e">
+<meta name="theme-color" content="#FFD100">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Report fault">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{--bg:#f4f6f3;--card:#fff;--ink:#14231c;--mute:#5b6b63;--brand:#0f3d2e;--accent:#e8a317;--ok:#1b7f4b;--bad:#b3261e;--line:#d9e0db}
 @media (prefers-color-scheme:dark){:root{--bg:#101612;--card:#18211b;--ink:#eef3ef;--mute:#9db0a5;--brand:#2f8f6b;--line:#2a3830}}
@@ -37,6 +43,10 @@ label{display:block;font-weight:600;font-size:14px;margin:8px 0 2px}
 .es{color:var(--mute);font-weight:400;font-size:.8em}
 .big .es{color:inherit;opacity:.8}
 [hidden]{display:none!important}
+#a2hs summary{cursor:pointer;font-weight:600}
+#a2hs ol{margin:8px 0 4px;padding-left:20px}
+#a2hs li{margin:4px 0}
+#a2hs .h{font-weight:600;margin-top:10px}
 </style>
 </head>
 <body>
@@ -71,6 +81,14 @@ label{display:block;font-weight:600;font-size:14px;margin:8px 0 2px}
     <button class="ghost" id="retake" type="button">Retake photo</button>
   </div>
 
+  <details id="a2hs" class="card">
+    <summary>Add this page to your home screen <span class="es">Añadir a la pantalla de inicio</span></summary>
+    <p class="note">If you opened this link inside WhatsApp, first tap the menu or Share button and choose <b>Open in Safari</b> or <b>Open in Chrome</b>. <span class="es">Si abrió el enlace dentro de WhatsApp, ábralo primero en Safari o Chrome.</span></p>
+    <div class="h">iPhone (Safari)</div>
+    <ol><li>Tap the Share button (square with an arrow). <span class="es">Pulse Compartir.</span></li><li>Choose <b>Add to Home Screen</b>. <span class="es">Añadir a pantalla de inicio.</span></li><li>Tap <b>Add</b>. <span class="es">Añadir.</span></li></ol>
+    <div class="h">Android (Chrome)</div>
+    <ol><li>Tap the menu (three dots). <span class="es">Menú (tres puntos).</span></li><li>Choose <b>Add to Home screen</b> or <b>Install app</b>. <span class="es">Añadir a la pantalla de inicio.</span></li></ol>
+  </details>
   <div id="msg" class="msg"></div>
   <div id="done" class="card" hidden>
     <button class="big" id="again" type="button">Report another <span class="es">Otro</span></button>
@@ -240,6 +258,7 @@ $('again').onclick=()=>{
   $('noteBox').value=''; $('preview').style.display='none'; $('map').style.display='none';
   $('done').hidden=true; $('step2').hidden=true; $('step1').hidden=false; hideMsg();
 };
+try{ if(window.matchMedia('(display-mode: standalone)').matches||navigator.standalone) $('a2hs').hidden=true; }catch(e){}
 startLocation();
 </script>
 </body>
