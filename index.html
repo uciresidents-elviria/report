@@ -205,6 +205,8 @@ $('send').onclick=async()=>{
   if(saving) return;
   if(!photoReady){ showMsg('bad','The photo is still uploading. Wait a moment, then tap Send.'); return; }
   if(!pos){ showMsg('bad','Still finding your location. Wait a moment, or tap "Wrong place?" to set the pin on the map.'); return; }
+  if(pos.lat<36.45||pos.lat>36.56||pos.lng<-4.90||pos.lng>-4.70){
+    showMsg('bad','This location is outside Elviria, so the report was not sent. If the pin is wrong, tap "Wrong place?" and move it.'); return; }
   const note=$('noteBox').value.trim();
   shareText=buildText(note);
   saving=true; $('send').disabled=true; hideMsg();
