@@ -138,12 +138,25 @@ function startUpload(){
   photoName=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2))+'.jpg';
   $('send').disabled=true; $('photoStat').textContent='Uploading photo…';
   const mine=photoName;
+  uploadThumb(mine);
   uploadP=fetch(SB_URL+'/storage/v1/object/fault-photos/'+mine,{method:'POST',
     headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'false'},body:blob})
   .then(r=>{ if(!r.ok) throw new Error('photo '+r.status); if(mine!==photoName) return;
     photoReady=true; $('send').disabled=false; $('photoStat').textContent='Photo ready ✓'; })
   .catch(()=>{ if(mine!==photoName) return; $('photoStat').innerHTML='Photo upload failed. <button class="ghost" id="retryUp" type="button">Try again</button>';
     $('retryUp').onclick=startUpload; });
+}
+/* A small copy for the map popup; best effort, the map falls back to the full photo if it is missing. */
+async function makeThumb(src){
+  const bmp=await createImageBitmap(src);
+  const k=Math.min(1,400/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas'); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.7));
+}
+function uploadThumb(name){
+  makeThumb(blob).then(t=>fetch(SB_URL+'/storage/v1/object/fault-photos/'+name.replace('.jpg','_t.jpg'),{method:'POST',
+    headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'false'},body:t})).catch(()=>{});
 }
 function photoUrl(){ return SB_URL+'/storage/v1/object/public/fault-photos/'+photoName; }
 
