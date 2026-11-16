@@ -53,6 +53,7 @@ label{display:block;font-weight:600;font-size:14px;margin:8px 0 2px}
 
   <div id="step2" class="card" hidden>
     <img id="preview" alt="Your photo">
+    <p class="note" id="photoStat" aria-live="polite"></p>
     <label>What is it? <span class="es">¿Qué es? (optional)</span></label>
     <div class="chips" id="chips">
       <button type="button" class="chip" data-v="pothole">Pothole · Bache</button>
@@ -83,7 +84,8 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const CENTRE=[36.50519,-4.77502];
 const LABEL={pothole:'Pothole',light:'Street light',drain:'Drain',road_surface:'Road surface',kerb_pavement:'Kerb/pavement',other:'Road fault'};
 const $=id=>document.getElementById(id);
-let pos=null, blob=null, category=null, saved=false, saving=false, shareFile=null, shareText='';
+let pos=null, blob=null, category=null, saved=false, saving=false, shareText='';
+let photoName=null, photoReady=false, uploadP=null;
 let map=null, marker=null;
 
 /* ---------- location ---------- */
@@ -126,10 +128,24 @@ $('file').onchange=async e=>{
     blob=await compress(f);
     $('preview').src=URL.createObjectURL(blob); $('preview').style.display='block';
     $('step1').hidden=true; $('step2').hidden=false;
-    shareFile=new File([blob],'road-fault.jpg',{type:'image/jpeg'});
+    startUpload();
   }catch(err){ showMsg('bad','Could not read that photo. Please try again.'); }
   e.target.value='';
 };
+/* The photo uploads as soon as it is taken, so its link is ready when Send is tapped. */
+function startUpload(){
+  photoReady=false; saved=false;
+  photoName=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2))+'.jpg';
+  $('send').disabled=true; $('photoStat').textContent='Uploading photo…';
+  const mine=photoName;
+  uploadP=fetch(SB_URL+'/storage/v1/object/fault-photos/'+mine,{method:'POST',
+    headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'false'},body:blob})
+  .then(r=>{ if(!r.ok) throw new Error('photo '+r.status); if(mine!==photoName) return;
+    photoReady=true; $('send').disabled=false; $('photoStat').textContent='Photo ready ✓'; })
+  .catch(()=>{ if(mine!==photoName) return; $('photoStat').innerHTML='Photo upload failed. <button class="ghost" id="retryUp" type="button">Try again</button>';
+    $('retryUp').onclick=startUpload; });
+}
+function photoUrl(){ return SB_URL+'/storage/v1/object/public/fault-photos/'+photoName; }
 
 /* ---------- category ---------- */
 $('chips').onclick=e=>{
@@ -169,30 +185,25 @@ function showMsg(c,t){ const m=$('msg'); m.className='msg '+c; m.textContent=t; 
 function hideMsg(){ $('msg').className='msg'; }
 function mapsLink(){ return 'https://maps.google.com/?q='+pos.lat.toFixed(6)+','+pos.lng.toFixed(6); }
 function buildText(note){
-  return '⚠️ Road fault: '+LABEL[category||'other']+(note?'\n'+note:'')+'\n📍 '+mapsLink();
+  return '⚠️ Road fault: '+LABEL[category||'other']+(note?'\n'+note:'')+'\n📷 '+photoUrl()+'\n📍 '+mapsLink();
 }
 async function doShare(){
   try{
-    if(navigator.canShare&&navigator.canShare({files:[shareFile]})){
-      await navigator.share({files:[shareFile],text:shareText});
-    } else if(navigator.share){
-      await navigator.share({text:shareText});
-    } else { window.open('https://wa.me/?text='+encodeURIComponent(shareText),'_blank'); }
+    if(navigator.share){ await navigator.share({text:shareText}); }
+    else { window.open('https://wa.me/?text='+encodeURIComponent(shareText),'_blank'); }
     return true;
   }catch(e){ return false; }
 }
 async function save(note){
-  const name=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2))+'.jpg';
-  const up=await fetch(SB_URL+'/storage/v1/object/fault-photos/'+name,{method:'POST',
-    headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'false'},body:blob});
-  if(!up.ok) throw new Error('photo '+up.status);
-  const row={lat:pos.lat,lng:pos.lng,accuracy_m:pos.acc||null,category:category||'other',note:note||null,photo_path:name};
+  await uploadP;
+  const row={lat:pos.lat,lng:pos.lng,accuracy_m:pos.acc||null,category:category||'other',note:note||null,photo_path:photoName};
   const r=await fetch(SB_URL+'/rest/v1/faults',{method:'POST',
     headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(row)});
   if(!r.ok) throw new Error('row '+r.status);
 }
 $('send').onclick=async()=>{
   if(saving) return;
+  if(!photoReady){ showMsg('bad','The photo is still uploading. Wait a moment, then tap Send.'); return; }
   if(!pos){ showMsg('bad','Still finding your location. Wait a moment, or tap "Wrong place?" to set the pin on the map.'); return; }
   const note=$('noteBox').value.trim();
   shareText=buildText(note);
@@ -209,7 +220,7 @@ $('send').onclick=async()=>{
 };
 $('shareAgain').onclick=async()=>{ if(await doShare()) $('shareAgain').hidden=true; };
 $('again').onclick=()=>{
-  blob=null;category=null;saved=false;shareFile=null;
+  blob=null;category=null;saved=false;photoReady=false;photoName=null;$('photoStat').textContent='';
   document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
   $('noteBox').value=''; $('preview').style.display='none'; $('map').style.display='none';
   $('done').hidden=true; $('step2').hidden=true; $('step1').hidden=false; hideMsg();
