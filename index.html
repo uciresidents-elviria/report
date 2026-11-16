@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Report a fault</title>
+<meta name="theme-color" content="#0f3d2e">
+<style>
+:root{--bg:#f4f6f3;--card:#fff;--ink:#14231c;--mute:#5b6b63;--brand:#0f3d2e;--accent:#e8a317;--ok:#1b7f4b;--bad:#b3261e;--line:#d9e0db}
+@media (prefers-color-scheme:dark){:root{--bg:#101612;--card:#18211b;--ink:#eef3ef;--mute:#9db0a5;--brand:#2f8f6b;--line:#2a3830}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom))}
+main{max-width:480px;margin:0 auto;padding-top:16px}
+h1{font-size:22px;margin:0 0 2px}
+.sub{color:var(--mute);margin:0 0 16px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+button,.btn{font:inherit;border:0;border-radius:14px;cursor:pointer}
+.big{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:20px;font-size:19px;font-weight:600;background:var(--brand);color:#fff}
+.big.send{background:var(--ok)}
+.big:disabled{opacity:.5}
+.ghost{background:transparent;color:var(--brand);padding:10px 4px;font-weight:600;text-decoration:underline}
+#preview{display:none;width:100%;max-height:130px;object-fit:cover;border-radius:12px;margin-bottom:8px}
+#send{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom));box-shadow:0 6px 18px rgba(0,0,0,.25);margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:15px}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1b1300;font-weight:600}
+textarea{width:100%;min-height:64px;border-radius:12px;border:1px solid var(--line);padding:10px;font:inherit;background:var(--card);color:var(--ink);resize:vertical}
+label{display:block;font-weight:600;font-size:14px;margin:8px 0 2px}
+.loc{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--mute);margin:8px 0}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--mute);flex:none}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--accent)}.dot.bad{background:var(--bad)}
+#map{display:none;height:240px;border-radius:12px;margin:8px 0;border:1px solid var(--line)}
+.note{font-size:13px;color:var(--mute)}
+.msg{display:none;border-radius:12px;padding:12px;margin:12px 0;font-size:15px}
+.msg.ok{display:block;background:#e3f4ea;color:#124d2d}
+.msg.bad{display:block;background:#fbe7e5;color:#7a1710}
+.es{color:var(--mute);font-weight:400;font-size:.8em}
+.big .es{color:inherit;opacity:.8}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>Report a road fault <span class="es">· Avisar de un fallo</span></h1>
+  <p class="sub">Pothole, broken light, blocked drain. Takes about 10 seconds.</p>
+
+  <div id="step1" class="card">
+    <button class="big" id="snap" type="button">📷&nbsp; Take a photo <span class="es">Hacer foto</span></button>
+    <input id="file" type="file" accept="image/*" capture="environment" hidden>
+    <div class="loc"><span class="dot" id="dot"></span><span id="locText">Finding your location…</span></div>
+    <p class="note">Please keep people and car number plates out of the photo.<br><span class="es">Evite personas y matrículas en la foto.</span></p>
+  </div>
+
+  <div id="step2" class="card" hidden>
+    <img id="preview" alt="Your photo">
+    <label>What is it? <span class="es">¿Qué es? (optional)</span></label>
+    <div class="chips" id="chips">
+      <button type="button" class="chip" data-v="pothole">Pothole · Bache</button>
+      <button type="button" class="chip" data-v="light">Street light · Farola</button>
+      <button type="button" class="chip" data-v="drain">Drain · Alcantarilla</button>
+      <button type="button" class="chip" data-v="road_surface">Road surface · Firme</button>
+      <button type="button" class="chip" data-v="kerb_pavement">Kerb/pavement · Acera</button>
+      <button type="button" class="chip" data-v="other">Other · Otro</button>
+    </div>
+    <label for="noteBox">Add a note <span class="es">Nota (optional)</span></label>
+    <textarea id="noteBox" maxlength="500" placeholder="e.g. Deep hole outside number 12"></textarea>
+    <div class="loc"><span class="dot" id="dot2"></span><span id="locText2"></span><button class="ghost" id="adjust" type="button">Wrong place?</button></div>
+    <div id="map"></div>
+    <button class="big send" id="send" type="button">Send to the group <span class="es">Enviar</span></button>
+    <button class="ghost" id="retake" type="button">Retake photo</button>
+  </div>
+
+  <div id="msg" class="msg"></div>
+  <div id="done" class="card" hidden>
+    <button class="big" id="again" type="button">Report another <span class="es">Otro</span></button>
+    <button class="ghost" id="shareAgain" type="button" hidden>Share to WhatsApp again</button>
+  </div>
+</main>
+
+<script>
+const SB_URL='https://ubaiteaeqyicojcnjzlm.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViYWl0ZWFlcXlpY29qY25qemxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ4MjcxMTIsImV4cCI6MjExMDQwMzExMn0.vbB4t4o2TluNWBP8px1zf8l0YJPLRGDD-TXkji2kvSg';
+const CENTRE=[36.50519,-4.77502];
+const LABEL={pothole:'Pothole',light:'Street light',drain:'Drain',road_surface:'Road surface',kerb_pavement:'Kerb/pavement',other:'Road fault'};
+const $=id=>document.getElementById(id);
+let pos=null, blob=null, category=null, saved=false, saving=false, shareFile=null, shareText='';
+let map=null, marker=null;
+
+/* ---------- location ---------- */
+function setLoc(p, source){
+  pos={lat:p.lat,lng:p.lng,acc:p.acc};
+  const t=source==='manual'?'Location set by you':('Location found, accurate to about '+Math.round(p.acc)+' m');
+  const cls=source==='manual'?'ok':(p.acc<=25?'ok':'warn');
+  for(const [d,x] of [['dot','locText'],['dot2','locText2']]){ $(d).className='dot '+cls; $(x).textContent=t; }
+}
+function locFail(msg){
+  $('dot').className='dot bad'; $('locText').textContent=msg;
+  $('dot2').className='dot bad'; $('locText2').textContent=msg;
+}
+let watchId=null;
+function startLocation(){
+  if(!navigator.geolocation){ locFail('No location available. You can place the pin on a map.'); return; }
+  watchId=navigator.geolocation.watchPosition(
+    g=>{ if(pos&&pos.manual) return; setLoc({lat:g.coords.latitude,lng:g.coords.longitude,acc:g.coords.accuracy}); },
+    e=>locFail(e.code===1?'Location is blocked. Allow it in your browser, or place the pin on a map.':'Could not get location. You can place the pin on a map.'),
+    {enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+}
+
+/* ---------- photo ---------- */
+async function compress(file){
+  let bmp;
+  try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }
+  catch(e){ bmp=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file);}); }
+  const w0=bmp.width||bmp.naturalWidth, h0=bmp.height||bmp.naturalHeight;
+  const k=Math.min(1,1600/Math.max(w0,h0));
+  const c=document.createElement('canvas'); c.width=Math.round(w0*k); c.height=Math.round(h0*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.8));
+}
+$('snap').onclick=()=>$('file').click();
+$('retake').onclick=()=>$('file').click();
+$('file').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  hideMsg();
+  try{
+    blob=await compress(f);
+    $('preview').src=URL.createObjectURL(blob); $('preview').style.display='block';
+    $('step1').hidden=true; $('step2').hidden=false;
+    shareFile=new File([blob],'road-fault.jpg',{type:'image/jpeg'});
+  }catch(err){ showMsg('bad','Could not read that photo. Please try again.'); }
+  e.target.value='';
+};
+
+/* ---------- category ---------- */
+$('chips').onclick=e=>{
+  const b=e.target.closest('.chip'); if(!b) return;
+  const on=b.getAttribute('aria-pressed')==='true';
+  document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+  if(!on){ b.setAttribute('aria-pressed','true'); category=b.dataset.v; } else category=null;
+};
+
+/* ---------- adjust location (map loaded only if needed) ---------- */
+function loadLeaflet(){
+  return new Promise((res,rej)=>{
+    if(window.L) return res();
+    const l=document.createElement('link'); l.rel='stylesheet'; l.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(l);
+    const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s);
+  });
+}
+$('adjust').onclick=async()=>{
+  const m=$('map');
+  if(m.style.display==='block'){ m.style.display='none'; return; }
+  m.style.display='block';
+  try{ await loadLeaflet(); }catch(e){ showMsg('bad','The map could not load. Check your connection.'); return; }
+  const start=pos?[pos.lat,pos.lng]:CENTRE;
+  if(!map){
+    map=L.map('map').setView(start,pos?19:16);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+    marker=L.marker(start,{draggable:true}).addTo(map);
+    const set=ll=>{ marker.setLatLng(ll); pos={lat:ll.lat,lng:ll.lng,acc:0,manual:true}; setLoc(pos,'manual'); };
+    marker.on('dragend',()=>set(marker.getLatLng()));
+    map.on('click',e=>set(e.latlng));
+  } else { map.setView(start,pos?19:16); marker.setLatLng(start); }
+  setTimeout(()=>map.invalidateSize(),50);
+};
+
+/* ---------- save + share ---------- */
+function showMsg(c,t){ const m=$('msg'); m.className='msg '+c; m.textContent=t; }
+function hideMsg(){ $('msg').className='msg'; }
+function mapsLink(){ return 'https://maps.google.com/?q='+pos.lat.toFixed(6)+','+pos.lng.toFixed(6); }
+function buildText(note){
+  return '⚠️ Road fault: '+LABEL[category||'other']+(note?'\n'+note:'')+'\n📍 '+mapsLink();
+}
+async function doShare(){
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[shareFile]})){
+      await navigator.share({files:[shareFile],text:shareText});
+    } else if(navigator.share){
+      await navigator.share({text:shareText});
+    } else { window.open('https://wa.me/?text='+encodeURIComponent(shareText),'_blank'); }
+    return true;
+  }catch(e){ return false; }
+}
+async function save(note){
+  const name=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2))+'.jpg';
+  const up=await fetch(SB_URL+'/storage/v1/object/fault-photos/'+name,{method:'POST',
+    headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'false'},body:blob});
+  if(!up.ok) throw new Error('photo '+up.status);
+  const row={lat:pos.lat,lng:pos.lng,accuracy_m:pos.acc||null,category:category||'other',note:note||null,photo_path:name};
+  const r=await fetch(SB_URL+'/rest/v1/faults',{method:'POST',
+    headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(row)});
+  if(!r.ok) throw new Error('row '+r.status);
+}
+$('send').onclick=async()=>{
+  if(saving) return;
+  if(!pos){ showMsg('bad','Still finding your location. Wait a moment, or tap "Wrong place?" to set the pin on the map.'); return; }
+  const note=$('noteBox').value.trim();
+  shareText=buildText(note);
+  saving=true; $('send').disabled=true; hideMsg();
+  // Share is called straight from the tap (phones only allow this right after a tap); saving runs alongside.
+  const sharing=saved?Promise.resolve(true):doShare();
+  const saving_p=saved?Promise.resolve():save(note).then(()=>{saved=true;});
+  const [shared]=await Promise.all([sharing,saving_p.catch(e=>{ saving_p.err=e; })]);
+  saving=false; $('send').disabled=false;
+  if(saving_p.err){ showMsg('bad','Could not save the report. Check your connection and tap Send again.'); return; }
+  $('step2').hidden=true; $('done').hidden=false;
+  $('shareAgain').hidden=!!shared;
+  showMsg('ok','✓ Saved. Thank you! '+(shared?'':'Your report is logged. Tap below to post it to the group.'));
+};
+$('shareAgain').onclick=async()=>{ if(await doShare()) $('shareAgain').hidden=true; };
+$('again').onclick=()=>{
+  blob=null;category=null;saved=false;shareFile=null;
+  document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+  $('noteBox').value=''; $('preview').style.display='none'; $('map').style.display='none';
+  $('done').hidden=true; $('step2').hidden=true; $('step1').hidden=false; hideMsg();
+};
+startLocation();
+</script>
+</body>
+</html>
